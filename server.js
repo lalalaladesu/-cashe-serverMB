@@ -3,21 +3,16 @@ const fs = require('fs');
 const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 3000;
+const GOOGLE_DRIVE_URL = 'https://drive.google.com/uc?export=download&id=1UEnpQBZi3DcAiPJqr6qQ2HRC-QgjcK8X';
+const DATA_FILE = '/tmp/cache_base.json';
 
-// Ссылка на твой файл в Google Drive
-const GOOGLE_DRIVE_URL = 'https://drive.google.com/file/d/1UEnpQBZi3DcAiPJqr6qQ2HRC-QgjcK8X/view?usp=sharing;
-const DATA_FILE = '/tmp/cache_base.json'; // Render позволяет писать в /tmp
-
-// Функция для скачивания файла с Google Drive
 async function downloadCacheFile() {
     return new Promise((resolve, reject) => {
         console.log('📥 Скачиваю базу данных с Google Drive...');
         
         const file = fs.createWriteStream(DATA_FILE);
         https.get(GOOGLE_DRIVE_URL, (response) => {
-            // Google Drive может показать страницу с предупреждением, обрабатываем
             if (response.statusCode === 302 || response.headers.location) {
-                // Следуем редиректу
                 https.get(response.headers.location, (res2) => {
                     res2.pipe(file);
                     file.on('finish', () => {
@@ -38,7 +33,6 @@ async function downloadCacheFile() {
     });
 }
 
-// Загружаем базу при старте
 let cacheData = {};
 async function loadCache() {
     try {
@@ -57,7 +51,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Эндпоинт для получения всех данных (с пагинацией)
 app.get('/sync/pull-all', (req, res) => {
     const entries = Object.entries(cacheData);
     const limit = parseInt(req.query.limit) || 10000;
@@ -77,7 +70,6 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', entries: Object.keys(cacheData).length });
 });
 
-// Загружаем базу и запускаем сервер
 loadCache().then(() => {
     app.listen(PORT, () => {
         console.log(`🚀 Сервер запущен на порту ${PORT}`);
