@@ -3,9 +3,12 @@ const fs = require('fs');
 const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Прямая ссылка на файл в Google Drive
 const GOOGLE_DRIVE_URL = 'https://drive.google.com/uc?export=download&id=1UEnpQBZi3DcAiPJqr6qQ2HRC-QgjcK8X';
 const DATA_FILE = '/tmp/cache_base.json';
 
+// Функция для скачивания файла
 async function downloadCacheFile() {
     return new Promise((resolve, reject) => {
         console.log('📥 Скачиваю базу данных с Google Drive...');
@@ -34,6 +37,7 @@ async function downloadCacheFile() {
 }
 
 let cacheData = {};
+
 async function loadCache() {
     try {
         await downloadCacheFile();
@@ -51,6 +55,7 @@ app.use((req, res, next) => {
     next();
 });
 
+// Эндпоинт для получения всех данных (с пагинацией)
 app.get('/sync/pull-all', (req, res) => {
     const entries = Object.entries(cacheData);
     const limit = parseInt(req.query.limit) || 10000;
@@ -66,12 +71,36 @@ app.get('/sync/pull-all', (req, res) => {
     });
 });
 
+// 🆕 Эндпоинт для одной карты
+app.get('/api/card/:cardId/:type', (req, res) => {
+    const { cardId, type } = req.params;
+    const key = `${type}_${cardId}`;
+    res.json({ data: cacheData[key] || null });
+});
+
+// 🆕 Эндпоинт для batch-запросов (несколько карт за раз)
+app.post('/api/batch', (req, res) => {
+    const { keys } = req.body;
+    if (!Array.isArray(keys)) {
+        return res.status(400).json({ error: 'keys must be an array' });
+    }
+    
+    const results = {};
+    for (const key of keys) {
+        results[key] = cacheData[key] || null;
+    }
+    res.json(results);
+});
+
+// Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', entries: Object.keys(cacheData).length });
 });
 
+// Запуск сервера
 loadCache().then(() => {
     app.listen(PORT, () => {
         console.log(`🚀 Сервер запущен на порту ${PORT}`);
+        console.log(`📊 Всего записей: ${Object.keys(cacheData).length}`);
     });
 });
